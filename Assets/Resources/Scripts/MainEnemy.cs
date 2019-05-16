@@ -7,41 +7,69 @@ public class MainEnemy : MonoBehaviour {
     [SerializeField]
     private GameObject projectilePrefab;
     private GameObject projectile;
+    [SerializeField]
+    private GameObject yen1, yen500;
 
     private bool alive;
-    public float speed = 2f;
+    public float speed;
+    public float shootPower;
+    public float range;
     GameObject player;
-    public bool canShootNext;
+    private bool canShootNext;
+
+    // For It's time to stop
+    public bool stop;
+
+    private Animator anim;
+
+    private GameObject statue;
+    [SerializeField]
+    private Sprite statueActivated;
+    [SerializeField]
+    private GameObject special1Controller;
+    private SoundManager soundMan;
 
     // Use this for initialization
-    void Start ()
+    void Start()
     {
+        special1Controller = GameObject.Find("Special1Controller");
         alive = true;
         player = GameObject.Find("Player");
         canShootNext = true;
+        anim = GetComponent<Animator>();
+        statue = GameObject.Find("mainEnemyStatue1");
+        soundMan = GameObject.FindObjectOfType<SoundManager>();
+        if(GameObject.Find("HubworldController").GetComponent<HubworldController>().area == "special1")
+        {
+            StartCoroutine(die());
+        }
     }
-	
 	// Update is called once per frame
 	void FixedUpdate ()
     {
-        if(alive)
+        if(alive && !stop)
         {
             // Get Vector to the player.
             Vector2 targetVelocity = new Vector2(player.transform.position.x - transform.position.x, player.transform.position.y - transform.position.y);
+            targetVelocity.Normalize();
             GetComponent<Rigidbody2D>().velocity = targetVelocity * speed * Time.deltaTime;
 
-            while(GetComponent<Rigidbody2D>().velocity.magnitude < speed)
-            {
-                GetComponent<Rigidbody2D>().velocity *= 1.1f;
-            }
-            //Debug.Log(targetVelocity.x + targetVelocity.y);
-
             // Get "distance" between enemy and player.
-            float combinedDistance = Mathf.Abs(targetVelocity.x + targetVelocity.y);
-            if(combinedDistance < 5 && projectile == null && canShootNext)
-            {               
-                    StartCoroutine(shoot(targetVelocity));      
+            Vector2 trueDistance = new Vector2(player.transform.position.x - transform.position.x, player.transform.position.y - transform.position.y);
+            float combinedDistance = Mathf.Abs(trueDistance.x) + Mathf.Abs(trueDistance.y);
+            //Debug.Log("combined distance" + combinedDistance);
+            if(combinedDistance < range && canShootNext && !stop)
+            {
+                //Debug.Log("shoot!");
+                StartCoroutine(shoot(targetVelocity));
+                soundMan.playAudioClip("MainEnemyProjectile");
             }
+
+        }
+        if (stop)
+        {
+            GetComponent<Rigidbody2D>().velocity = new Vector2(0,0);
+            anim.SetBool("moving", false);
         }
 	}
 
@@ -52,21 +80,71 @@ public class MainEnemy : MonoBehaviour {
         // Instantiate projectile, move it into the enemy and add a force.
         projectile = Instantiate(projectilePrefab) as GameObject;
         projectile.transform.position = transform.position;
-        projectile.GetComponent<Rigidbody2D>().AddForce(targetVelocity / 75);
-
-        // Destroy the projectile if it didn't hit anything after 2 seconds.
+        projectile.GetComponent<Rigidbody2D>().AddForce(targetVelocity * shootPower);
         yield return new WaitForSeconds(2f);
-        Destroy(projectile.gameObject);
         canShootNext = true;
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        // Destory enemy and projectile if it gets hit.
-        if (collision.tag == "PlayerProjectile")
+        // Destroy enemy and projectile if it gets hit.
+        if (collision.tag == "PlayerProjectile" || collision.tag == "Bubble")
         {
+            soundMan.playAudioClip("MainEnemyDeath");
+            int ran = Random.Range(0, 100);
+            if(ran <= 50)
+            {
+                int ran1 = Random.Range(0, 1000);
+                if(ran1 == 1)
+                {
+                    GameObject f1 = Instantiate(yen500) as GameObject;
+                    GameObject f2 = Instantiate(yen500) as GameObject;
+                    GameObject f3 = Instantiate(yen500) as GameObject;
+                    GameObject f4 = Instantiate(yen500) as GameObject;
+                    GameObject f5 = Instantiate(yen500) as GameObject;
+                    f1.transform.position = new Vector2(transform.position.x, transform.position.y);
+                    f2.transform.position = new Vector2(transform.position.x, transform.position.y + 1);
+                    f3.transform.position = new Vector2(transform.position.x, transform.position.y - 1);
+                    f4.transform.position = new Vector2(transform.position.x + 1, transform.position.y);
+                    f5.transform.position = new Vector2(transform.position.x - 1, transform.position.y);
+                }
+                else
+                {
+                    GameObject oneYen = Instantiate(yen1) as GameObject;
+                    oneYen.transform.position = transform.position;
+                }
+            }
+
+            if(collision.gameObject.tag == "PlayerProjectile")
+            {
+                Destroy(collision.gameObject);
+            }
+
+            statue.GetComponent<SpriteRenderer>().sprite = statueActivated;
             Destroy(gameObject);
-            Destroy(collision.gameObject);
+        }
+
+        if (collision.tag == "MasterSword")
+        {
+            if(player.GetComponent<Player>().bass > 0.9f)
+            {
+                special1Controller.GetComponent<Special1Controller>().crits++;
+                Debug.Log("crit");
+                GameObject.Find("UIController").GetComponent<UIController>().showCrit();
+            }
+            else
+            {
+                special1Controller.GetComponent<Special1Controller>().nonCrits++;
+            }
+            soundMan.playAudioClip("MainEnemyDeath");
+            Destroy(gameObject);
         }
     }
+
+    IEnumerator die()
+    {
+        yield return new WaitForSeconds(3);
+        Destroy(gameObject);
+    }
+
 }

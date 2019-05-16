@@ -6,43 +6,65 @@ public class Dolan : MonoBehaviour {
 
     private GameObject player;
     private bool alive = true;
-    private float minimalSpeed = 3f;
-    private int health = 10;
+    public float speed;
+    public float shootPower, shootPowerBack;
+    public float range;
+    public int health = 10;
     GameObject knife1, knife2, knife3, knife4;
+    public GameObject dropPrefab;
+
+    [SerializeField] private GameObject yen1, yen5, yen10, yen50;
+
+    // For It's time to stop
+    public bool stop;
 
     [SerializeField] private GameObject knifePrefab;
     private bool canShootNext;
 
     private SpriteRenderer sr;
+    private Animator anim;
+
+    private GameObject statue;
+    [SerializeField]
+    private Sprite statueActivated;
+
+    private SoundManager soundMan;
 
     private void Start()
     {
         player = GameObject.Find("Player");
         canShootNext = true;
         sr = GetComponent<SpriteRenderer>();
+        anim = GetComponent<Animator>();
+        statue = GameObject.Find("dolanStatue1");
+        soundMan = GameObject.FindObjectOfType<SoundManager>();
     }
+
 
     private void FixedUpdate()
     {
-        if (alive)
+        if (alive && !stop)
         {
             Vector2 playerVector = new Vector2(player.transform.position.x - transform.position.x, player.transform.position.y - transform.position.y);
-            GetComponent<Rigidbody2D>().velocity = playerVector * minimalSpeed * Time.deltaTime;
-
-            // Accelerate Dolan if he's too slow.
-            while (GetComponent<Rigidbody2D>().velocity.magnitude < minimalSpeed)
-            {
-                GetComponent<Rigidbody2D>().velocity *= 1.1f;
-            }
+            playerVector.Normalize();
+            GetComponent<Rigidbody2D>().velocity = playerVector * speed * Time.deltaTime;
 
             // Distance between Dolan and Player
-            float distance = Mathf.Abs(playerVector.x + playerVector.y);
+            Vector2 trueDistance = new Vector2(player.transform.position.x - transform.position.x, player.transform.position.y - transform.position.y);
+            float combinedDistance = Mathf.Abs(trueDistance.x) + Mathf.Abs(trueDistance.y);
 
             // If Dolan's distance is smaller than 7 etc., shoot
-            if (distance < 7 && canShootNext)
+            if (combinedDistance < range && canShootNext)
             {
                 StartCoroutine(shoot(playerVector));
+                soundMan.playAudioClip("Knife1");
             }
+        }
+
+        if (stop)
+        {
+            GetComponent<Rigidbody2D>().velocity = new Vector2(0, 0);
+            anim.SetBool("moving", false);
         }
     }
 
@@ -63,42 +85,72 @@ public class Dolan : MonoBehaviour {
         knife4 = Instantiate(knifePrefab) as GameObject;
         knife4.transform.position = this.transform.position;
 
-        // Launch and rotate the knife towards the player
-        knife1.GetComponent<Rigidbody2D>().AddForce(playerVector / 75);
+        // Launch and rotate the knifes towards the player
+        knife1.GetComponent<Rigidbody2D>().AddForce(playerVector * shootPower);
         float angle = Mathf.Atan2(playerVector.y, playerVector.x) * Mathf.Rad2Deg;
         knife1.transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
 
         Vector2 playerVectorRotated = playerVector;
 
         playerVectorRotated = RotateVector(playerVector, 90f);
-        knife2.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated / 75);
+        knife2.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated * shootPower);
         knife2.transform.rotation = Quaternion.AngleAxis(angle + 90, Vector3.forward);
 
         playerVectorRotated = RotateVector(playerVectorRotated, 90f);
-        knife3.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated / 75);
+        knife3.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated * shootPower);
         knife3.transform.rotation = Quaternion.AngleAxis(angle + 180, Vector3.forward);
 
         playerVectorRotated = RotateVector(playerVectorRotated, 90f);
-        knife4.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated / 75);
+        knife4.GetComponent<Rigidbody2D>().AddForce(playerVectorRotated * shootPower);
         knife4.transform.rotation = Quaternion.AngleAxis(angle + 270, Vector3.forward);
+        Debug.Log("force from Dolan init");
 
-        // Wait and Destroy the knife
-        yield return new WaitForSeconds(1f);
-        Destroy(knife1.gameObject);
+        yield return new WaitForSeconds(1);
 
-        // Update our vector
-        Vector2 playerVector2 = new Vector2(player.transform.position.x - knife2.transform.position.x, player.transform.position.y - knife2.transform.position.y);
-        Vector2 playerVector3 = new Vector2(player.transform.position.x - knife3.transform.position.x, player.transform.position.y - knife3.transform.position.y);
-        Vector2 playerVector4 = new Vector2(player.transform.position.x - knife4.transform.position.x, player.transform.position.y - knife4.transform.position.y);
+        // Wait and destroy the knife
 
-        // ATTACK
-        knife2.GetComponent<Rigidbody2D>().AddForce(playerVector2 / 100);
-        knife3.GetComponent<Rigidbody2D>().AddForce(playerVector3 / 100);
-        knife4.GetComponent<Rigidbody2D>().AddForce(playerVector4 / 100);
+        if (!stop)
+        {
+            Destroy(knife1.gameObject);
+        }
+        else
+        {
+            yield return new WaitForSeconds(2f);
+        }
 
-        knife2.GetComponent<Knife>().back = true;
-        knife3.GetComponent<Knife>().back = true;
-        knife4.GetComponent<Knife>().back = true;
+        soundMan.playAudioClip("FeatherShuuriken");
+
+        if (knife2)
+        {
+            Vector2 playerVector2 = new Vector2(player.transform.position.x - knife2.transform.position.x, player.transform.position.y - knife2.transform.position.y);
+            playerVector2.Normalize();
+            knife2.GetComponent<Rigidbody2D>().velocity = new Vector2(0, 0);
+            knife2.GetComponent<Rigidbody2D>().AddForce(playerVector2 * shootPowerBack);
+            knife2.GetComponent<Knife>().back = true;
+        }
+
+        if (knife3)
+        {
+            Vector2 playerVector3 = new Vector2(player.transform.position.x - knife3.transform.position.x, player.transform.position.y - knife3.transform.position.y);
+            playerVector3.Normalize();
+            knife3.GetComponent<Rigidbody2D>().velocity = new Vector2(0, 0);
+            knife3.GetComponent<Rigidbody2D>().AddForce(playerVector3 * shootPowerBack);
+            knife3.GetComponent<Knife>().back = true;
+        }
+
+        if (knife4)
+        {
+            Vector2 playerVector4 = new Vector2(player.transform.position.x - knife4.transform.position.x, player.transform.position.y - knife4.transform.position.y);
+            playerVector4.Normalize();
+            knife4.GetComponent<Rigidbody2D>().velocity = new Vector2(0, 0);
+            knife4.GetComponent<Rigidbody2D>().AddForce(playerVector4 * shootPowerBack);
+            knife4.GetComponent<Knife>().back = true;
+        }
+
+        Debug.Log("force from Dolan script, after wait");
+       
+        // Update our vector if the knife hasn't hit yet.
+        
 
         yield return new WaitForSeconds(2f);
 
@@ -114,19 +166,46 @@ public class Dolan : MonoBehaviour {
         // Subtract one healthpoint if Dolan gets hit by the PlayerProjectile.
         if (collision.tag == "PlayerProjectile")
         {
-            health -= 1;
-            if(health <= 0)
+            health = health - FindObjectOfType<Player>().damage;
+            if (health <= 0 && alive)
             {
-                // Coroutine because Wait Time is necessary
+                if (Random.value < .2)
+                {
+                    GameObject drop = Instantiate(dropPrefab, new Vector2(transform.position.x, transform.position.y - 1), Quaternion.identity) as GameObject;
+                }
+
+                // Coroutine because Wait Time is necessary.
+                soundMan.playAudioClip("MainEnemyDeath");
                 StartCoroutine(die());
             }
             Destroy(collision.gameObject);
+        }
+
+        if (collision.tag == "MasterSword")
+        {
+            if (player.GetComponent<Player>().isDarkLink && player.GetComponent<Player>().bass > 0.3f)
+            {
+                Debug.Log("crit");
+                GameObject.Find("UIController").GetComponent<UIController>().showCrit();
+                Destroy(gameObject);
+            }
+            else
+            {
+                health -= 3;
+            }
+            
+
+            if (health <= 0)
+            {
+                // Coroutine because Wait Time is necessary.
+                StartCoroutine(die());
+            }
         }
     }
 
     IEnumerator die()
     {
-        // reduce f by 0.1 until f = 0
+        // Reduce f by 0.1 until f = 0
         for(float f = 1; f >= 0; f -= 0.1f)
         {
             // Colour of Dolan's sprite
@@ -142,12 +221,41 @@ public class Dolan : MonoBehaviour {
             yield return null;
         }
 
-
-        // Destroy that duckling
         alive = false;
+
+        int ran = Random.Range(0, 100);
+        if (ran < 50)
+        {
+            int ran1 = Random.Range(0, 100);
+
+            if (ran1 < 10)
+            {
+                GameObject oneYen = Instantiate(yen1) as GameObject;
+                oneYen.transform.position = transform.position;
+            }
+            else if (ran1 < 20)
+            {
+                GameObject fiveYen = Instantiate(yen5) as GameObject;
+                fiveYen.transform.position = transform.position;
+            }
+            else if (ran1 < 80)
+            {
+                GameObject tenYen = Instantiate(yen10) as GameObject;
+                tenYen.transform.position = transform.position;
+            }
+            else if (ran1 < 100)
+            {
+                GameObject fiftyYen = Instantiate(yen50) as GameObject;
+                fiftyYen.transform.position = transform.position;
+            }
+        }
+
+        statue.GetComponent<SpriteRenderer>().sprite = statueActivated;
         Destroy(this.gameObject);
     }
 
+
+    // Function to rotate a vector by a given angle.
     public Vector2 RotateVector(Vector2 v, float angle)
     {
         float radian = angle * Mathf.Deg2Rad;
